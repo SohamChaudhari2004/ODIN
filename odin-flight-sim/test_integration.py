@@ -136,7 +136,7 @@ async def test_full_system_integration():
     # Test frontend availability (optional)
     print("\n8. Testing Frontend Availability...")
     try:
-        response = requests.get("http://localhost:5173", timeout=5)
+        response = requests.get("http://localhost:8080", timeout=5)
         if response.status_code == 200:
             print("✅ Frontend is accessible")
         else:

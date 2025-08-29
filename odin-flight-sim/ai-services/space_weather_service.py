@@ -113,10 +113,10 @@ class SpaceWeatherDataService:
         try:
             solar_wind_data = {
                 'speed_km_s': random.uniform(300, 800),  # km/s
-                'density_cm3': random.uniform(1, 20),    # particles/cm³
+                'density_cm3': random.uniform(1, 20),    # particles/cmÂ³
                 'temperature_k': random.uniform(10000, 100000),  # Kelvin
                 'magnetic_field_nt': random.uniform(2, 15),      # nT
-                'proton_flux': random.uniform(1e6, 1e9),         # particles/cm²/s
+                'proton_flux': random.uniform(1e6, 1e9),         # particles/cmÂ²/s
             }
             
             return solar_wind_data
@@ -150,10 +150,10 @@ class SpaceWeatherDataService:
         """Get radiation environment data"""
         try:
             radiation_data = {
-                'proton_flux_10mev': random.uniform(1, 1000),    # particles/cm²/s/sr
-                'electron_flux_2mev': random.uniform(100, 10000),  # particles/cm²/s/sr
+                'proton_flux_10mev': random.uniform(1, 1000),    # particles/cmÂ²/s/sr
+                'electron_flux_2mev': random.uniform(100, 10000),  # particles/cmÂ²/s/sr
                 'galactic_cosmic_rays': random.uniform(50, 200),   # relative intensity
-                'van_allen_belt_flux': random.uniform(1e6, 1e8),  # particles/cm²/s
+                'van_allen_belt_flux': random.uniform(1e6, 1e8),  # particles/cmÂ²/s
                 'radiation_storm_level': self._classify_radiation_storm()
             }
             

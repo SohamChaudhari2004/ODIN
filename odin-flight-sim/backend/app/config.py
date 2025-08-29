@@ -1,5 +1,5 @@
 """
-ODIN Configuration Module
+ODIN Configuration Module - Fixed
 Database and service configuration for the ODIN Navigation System
 """
 
@@ -16,13 +16,9 @@ class Settings(BaseSettings):
     spacetrack_password: Optional[str] = None
     mistral_api_key: Optional[str] = None
     
-    # Database Configuration - MongoDB for ODIN
+    # Database Configuration - Local MongoDB with fallback
     mongodb_url: str = "mongodb://localhost:27017"
     database_name: str = "odin_navigation"
-    
-    # Legacy database (keeping for compatibility)
-    database_url: str = "sqlite:///./simulation.db"
-    redis_url: str = "redis://localhost:6379"
     
     # Server Configuration
     host: str = "0.0.0.0"
@@ -30,7 +26,14 @@ class Settings(BaseSettings):
     reload: bool = True
     
     # CORS Configuration
-    allowed_origins: List[str] = ["http://localhost:3000", "http://localhost:5173"]
+    allowed_origins: List[str] = [
+        "http://localhost:3000", 
+        "http://localhost:5173",
+        "http://localhost:8080",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:8080"
+    ]
     
     # ODIN System Configuration
     max_mission_duration_hours: int = 168  # 7 days
@@ -63,28 +66,49 @@ settings = Settings()
 # Global MongoDB client - will be initialized in lifespan
 mongodb_client: Optional[AsyncIOMotorClient] = None
 database = None
+USE_DATABASE = False
 
 async def init_database():
-    """Initialize MongoDB connection"""
-    global mongodb_client, database
+    """Initialize MongoDB connection with fallback"""
+    global mongodb_client, database, USE_DATABASE
     
     try:
-        mongodb_client = AsyncIOMotorClient(settings.mongodb_url)
+        # Try to connect to local MongoDB first
+        mongodb_client = AsyncIOMotorClient(settings.mongodb_url, serverSelectionTimeoutMS=5000)
         database = mongodb_client[settings.database_name]
         
         # Test connection
         await mongodb_client.admin.command('ping')
         print(f"✅ Connected to MongoDB: {settings.database_name}")
+        USE_DATABASE = True
         
         # Create indexes for performance
         await create_indexes()
         
     except Exception as e:
-        print(f"❌ Failed to connect to MongoDB: {e}")
-        print("🔄 Continuing without database - some features will be limited")
+        print(f"⚠️ MongoDB not available: {e}")
+        print("🔄 Running in offline mode - using in-memory storage")
+        USE_DATABASE = False
+        # Initialize in-memory storage as fallback
+        init_memory_storage()
+
+def init_memory_storage():
+    """Initialize in-memory storage as database fallback"""
+    global database
+    database = {
+        'missions': [],
+        'hazards': [],
+        'decision_logs': [],
+        'trajectories': [],
+        'space_weather': []
+    }
+    print("✅ In-memory storage initialized")
 
 async def create_indexes():
     """Create database indexes for optimal performance"""
+    if not USE_DATABASE:
+        return
+        
     try:
         # Mission collection indexes
         await database.missions.create_index("mission_id")
@@ -94,17 +118,14 @@ async def create_indexes():
         # Hazard collection indexes
         await database.hazards.create_index("timestamp")
         await database.hazards.create_index("hazard_type")
-        await database.hazards.create_index([("timestamp", 1), ("hazard_type", 1)])
         
         # Decision logs indexes
         await database.decision_logs.create_index("mission_id")
         await database.decision_logs.create_index("timestamp")
-        await database.decision_logs.create_index("decision_type")
         
         # Trajectory collection indexes
         await database.trajectories.create_index("mission_id")
         await database.trajectories.create_index("trajectory_type")
-        await database.trajectories.create_index("created_at")
         
         print("✅ Database indexes created successfully")
         
@@ -114,10 +135,14 @@ async def create_indexes():
 async def close_database():
     """Close MongoDB connection"""
     global mongodb_client
-    if mongodb_client:
+    if mongodb_client and USE_DATABASE:
         mongodb_client.close()
         print("🔒 Database connection closed")
 
 def get_database():
     """Get database instance"""
     return database
+
+def is_database_available():
+    """Check if database is available"""
+    return USE_DATABASE

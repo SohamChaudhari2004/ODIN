@@ -14,8 +14,8 @@ try:
     from poliastro.bodies import Earth, Moon
     from poliastro.twobody import Orbit
     from poliastro.maneuver import Maneuver
-    from poliastro.threebody.flybys import flyby
-    from poliastro.plotting import OrbitPlotter
+    # from poliastro.threebody.flybys import compute_flyby_fast  # Temporarily disabled due to import issues
+    # from poliastro.plotting import OrbitPlotter3D  # Temporarily disabled due to import issues
     from poliastro.util import time_range
     from astropy import units as u
     from astropy.time import Time

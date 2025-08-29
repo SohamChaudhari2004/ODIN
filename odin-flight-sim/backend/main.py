@@ -31,6 +31,14 @@ async def lifespan(app: FastAPI):
     # Initialize database
     await init_database()
     
+    # Initialize ODIN services
+    from app.api.routes import initialize_odin_services
+    try:
+        await initialize_odin_services()
+        print("✅ ODIN services initialized successfully")
+    except Exception as e:
+        print(f"⚠️ ODIN services initialization failed: {e}")
+    
     # Start background tasks
     asyncio.create_task(websocket_manager.simulation_loop())
     

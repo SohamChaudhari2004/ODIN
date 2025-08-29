@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -10,7 +10,7 @@ import {
   Sun,
   Orbit,
 } from "lucide-react";
-import { useDynamicMissionData } from "../hooks/useDynamicMissionData";
+import { useDynamicMissionData } from "@/data/useDynamicMissionData";
 
 // Interface for hazard data
 interface Hazard {
@@ -26,10 +26,7 @@ interface HazardPanelProps {
   onHazardInject?: (hazard: Hazard) => void;
 }
 
-const hazardIcons: Record<
-  string,
-  React.ComponentType<{ className?: string }>
-> = {
+const hazardIcons: Record<string, any> = {
   "Solar Flare": Sun,
   CME: Orbit,
   "Radiation Storm": Atom,
@@ -48,13 +45,11 @@ const severityColors: Record<string, string> = {
 
 export default function HazardPanel({ onHazardInject }: HazardPanelProps) {
   // Use dynamic mission data hook
-  const { allHazards, isLoading, error } = useDynamicMissionData({
+  const { hazards, loading, error } = useDynamicMissionData({
     refreshInterval: 15000, // Refresh every 15 seconds for hazards
     enableWebSocket: true,
     predictionHorizon: 72,
   });
-
-  const hazards = allHazards;
 
   const [localActiveHazards, setLocalActiveHazards] = useState<Hazard[]>([]);
   const [isMonitoring, setIsMonitoring] = useState(true);
@@ -113,7 +108,7 @@ export default function HazardPanel({ onHazardInject }: HazardPanelProps) {
   }, [injectRandomHazard]);
 
   // Show loading state
-  if (isLoading) {
+  if (loading) {
     return (
       <Card className="h-full bg-card border-border">
         <div className="p-4 border-b border-border">
