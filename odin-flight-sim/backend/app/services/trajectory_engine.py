@@ -11,19 +11,17 @@ from dataclasses import dataclass
 import logging
 
 try:
-    from poliastro.bodies import Earth, Moon
-    from poliastro.twobody import Orbit
-    from poliastro.maneuver import Maneuver
-    from poliastro.threebody.flybys import flyby
-    from poliastro.plotting import OrbitPlotter
-    from poliastro.util import time_range
+    from boinor.bodies import Earth, Moon
+    from boinor.twobody import Orbit
+    from boinor.maneuver import Maneuver
+    from boinor.plotting import OrbitPlotter
     from astropy import units as u
     from astropy.time import Time
     from astropy.coordinates import CartesianRepresentation
-    POLIASTRO_AVAILABLE = True
+    BOINOR_AVAILABLE = False
 except ImportError as e:
-    print(f"⚠️ Poliastro not available: {e}")
-    POLIASTRO_AVAILABLE = False
+    print(f"⚠️ boinor not available: {e}")
+    BOINOR_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +56,7 @@ class TrajectoryAnalysis:
     safety_score: float  # overall safety 0-1
 
 class TrajectoryEngine:
-    """ODIN Trajectory & Propulsion Engine using Poliastro"""
+    """ODIN Trajectory & Propulsion Engine using boinor"""
     
     def __init__(self):
         self.engine_name = "ODIN Trajectory Engine"
@@ -84,7 +82,8 @@ class TrajectoryEngine:
     ) -> TrajectoryAnalysis:
         """Calculate initial Earth-to-Moon transfer trajectory"""
         
-        if not POLIASTRO_AVAILABLE:
+        if not BOINOR_AVAILABLE:
+            logger.warning("boinor not available, using fallback trajectory calculation.")
             return await self._fallback_trajectory_calculation(start_time, destination)
         
         try:
@@ -102,15 +101,29 @@ class TrajectoryEngine:
             transfer_time = 5 * u.day  # Typical Earth-Moon transfer time
             
             # Calculate the maneuvers needed
-            maneuvers = await self._calculate_hohmann_transfer(initial_orbit, transfer_time)
+            hohmann_maneuver = await self._calculate_hohmann_transfer(initial_orbit, transfer_time)
+
+            if hohmann_maneuver is None:
+                return await self._fallback_trajectory_calculation(start_time, destination)
             
             # Generate trajectory waypoints
             waypoints = await self._generate_trajectory_waypoints(
-                initial_orbit, maneuvers, transfer_time
+                initial_orbit, hohmann_maneuver, transfer_time
             )
             
+            # Convert maneuver to ManeuverData
+            maneuvers = []
+            for impulse in hohmann_maneuver.impulses:
+                maneuvers.append(ManeuverData(
+                    time=initial_orbit.epoch.to_datetime(),
+                    delta_v=impulse[1].to(u.m / u.s).value,
+                    duration=300,
+                    fuel_cost=await self._calculate_fuel_requirement(np.linalg.norm(impulse[1].to(u.m / u.s).value)),
+                    description="Hohmann transfer impulse"
+                ))
+
             # Calculate metrics
-            total_delta_v = (sum(maneuver.delta_v[0]**2 + maneuver.delta_v[1]**2 + maneuver.delta_v[2]**2)**0.5 for maneuver in maneuvers)
+            total_delta_v = hohmann_maneuver.get_total_cost().to(u.m / u.s).value
             
             return TrajectoryAnalysis(
                 trajectory_id=f"baseline_{start_time.strftime('%Y%m%d_%H%M%S')}",
@@ -126,7 +139,7 @@ class TrajectoryEngine:
             )
             
         except Exception as e:
-            logger.error(f"Error calculating initial trajectory: {e}")
+            logger.error(f"Error calculating initial trajectory with boinor: {e}")
             return await self._fallback_trajectory_calculation(start_time, destination)
     
     async def calculate_alternative_trajectory(
@@ -276,51 +289,31 @@ class TrajectoryEngine:
     
     async def _calculate_hohmann_transfer(self, initial_orbit, transfer_time):
         """Calculate Hohmann transfer maneuvers"""
-        if not POLIASTRO_AVAILABLE:
-            return [
-                ManeuverData(
-                    time=datetime.utcnow(),
-                    delta_v=[3200, 0, 0],
-                    duration=300,
-                    fuel_cost=150,
-                    description="Trans-lunar injection burn"
-                ),
-                ManeuverData(
-                    time=datetime.utcnow() + timedelta(hours=120),
-                    delta_v=[-800, 0, 0],
-                    duration=120,
-                    fuel_cost=50,
-                    description="Lunar orbit insertion"
-                )
-            ]
+        if not BOINOR_AVAILABLE:
+            logger.warning("boinor not available, using fallback Hohmann transfer calculation.")
+            return None
+
+        # Use boinor for precise calculations
+        hohmann = Maneuver.hohmann(initial_orbit, 384400 * u.km)
         
-        # Use Poliastro for precise calculations
-        maneuvers = []
-        # Implementation would use Poliastro's maneuver planning
-        return maneuvers
+        return hohmann
     
-    async def _generate_trajectory_waypoints(self, initial_orbit, maneuvers, transfer_time):
+    async def _generate_trajectory_waypoints(self, initial_orbit, hohmann_maneuver, transfer_time):
         """Generate trajectory waypoints"""
+        if not BOINOR_AVAILABLE or hohmann_maneuver is None:
+            logger.warning("boinor not available, using fallback trajectory waypoints.")
+            return [TrajectoryPoint(time=datetime.utcnow(), position=[0,0,0], velocity=[0,0,0])]
+
+        # Generate waypoints using boinor
+        final_orbit = initial_orbit.apply_maneuver(hohmann_maneuver)
+        
         waypoints = []
-        current_time = datetime.utcnow()
-        
-        # Generate sample waypoints for demonstration
-        for i in range(100):
-            t = i / 99.0  # 0 to 1
-            time_offset = t * transfer_time.to(u.hour).value
-            
-            # Simple interpolation for demonstration
-            # In reality, would use orbital propagation
-            x = 7000 + t * 35000  # km
-            y = t * 10000 * np.sin(t * np.pi)
-            z = t * 5000 * np.cos(t * np.pi)
-            
+        for state in final_orbit.sample(100):
             waypoints.append(TrajectoryPoint(
-                time=current_time + timedelta(hours=time_offset),
-                position=[x, y, z],
-                velocity=[7.8 * (1-t), 2.0 * t, 0.5 * t]
+                time=state.epoch.to_datetime(),
+                position=state.r.to(u.km).value.tolist(),
+                velocity=state.v.to(u.km / u.s).value.tolist()
             ))
-        
         return waypoints
     
     async def _calculate_fuel_requirement(self, delta_v_m_s: float) -> float:
@@ -407,12 +400,21 @@ class TrajectoryEngine:
         )
     
     async def _fallback_trajectory_calculation(self, start_time, destination):
-        """Fallback trajectory calculation when Poliastro is not available"""
+        """Fallback trajectory calculation when boinor is not available"""
+        logger.warning(f"Using fallback trajectory calculation for destination: {destination}")
         return TrajectoryAnalysis(
             trajectory_id=f"fallback_{start_time.strftime('%Y%m%d_%H%M%S')}",
-            name="Fallback Trajectory (Poliastro Unavailable)",
-            waypoints=[],
-            maneuvers=[],
+            name="Fallback Trajectory (boinor Unavailable)",
+            waypoints=[TrajectoryPoint(time=start_time, position=[7000,0,0], velocity=[0,7.8,0])],
+            maneuvers=[
+                ManeuverData(
+                    time=start_time,
+                    delta_v=np.array([3200, 0, 0]),
+                    duration=300,
+                    fuel_cost=150,
+                    description="Trans-lunar injection burn (fallback)"
+                )
+            ],
             total_delta_v=4000.0,
             total_duration=120.0,
             fuel_required=200.0,

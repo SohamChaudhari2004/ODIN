@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     log_file: str = "logs/simulation.log"
     
     class Config:
-        env_file = ".env"
+        env_file = os.path.join(os.path.dirname(__file__), '..', '..', '..', '.env')
         env_file_encoding = "utf-8"
 
 # Global settings instance

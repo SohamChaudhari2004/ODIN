@@ -105,6 +105,25 @@ class InitializeMissionRequest(BaseModel):
     historical_date: Optional[datetime] = None
     mission_constraints: Optional[Dict[str, Any]] = None
 
+class SystemInfo(BaseModel):
+    name: str
+    version: str
+    destination: str
+    ai_engine: str
+    data_source: str
+    trajectory_engine: str
+    database: str
+
+class InitializeMissionResponse(BaseModel):
+    """Response model for mission initialization"""
+    success: bool
+    mission_id: str
+    message: str
+    historical_timestamp: str
+    initial_trajectory: str
+    data: Dict[str, Any]
+    system_info: SystemInfo
+
 class MissionStatusResponse(BaseModel):
     """Response model for mission status"""
     mission_id: str

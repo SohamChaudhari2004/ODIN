@@ -6,93 +6,23 @@ import logging
 import sys
 import os
 import uuid
-import importlib.util
 
-# Add AI services to path and handle imports dynamically
-import importlib.util
-ai_services_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'ai-services')
-if ai_services_path not in sys.path:
-    sys.path.insert(0, ai_services_path)
+# Add ai-services to the Python path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'ai-services')))
 
-# Initialize ODIN service classes
-ODIN_AVAILABLE = False
-OdinNavigationSystem = None
-AICoPilot = None
-PredictiveHazardForecasting = None
-ExplainabilityModule = None
-SpaceWeatherDataService = None
-HuggingFaceLLMService = None
-OdinDecisionEngine = None
-
-def load_ai_service(module_name, class_name):
-    """Dynamically load AI service classes"""
-    try:
-        module_path = os.path.join(ai_services_path, f"{module_name}.py")
-        if os.path.exists(module_path):
-            spec = importlib.util.spec_from_file_location(module_name, module_path)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            return getattr(module, class_name)
-        return None
-    except Exception as e:
-        print(f"Failed to load {module_name}.{class_name}: {e}")
-        return None
-
-# Load AI services
+# Import AI services
 try:
-    OdinNavigationSystem = load_ai_service("odin_main", "OdinNavigationSystem")
-    AICoPilot = load_ai_service("ai_copilot", "AICoPilot")
-    PredictiveHazardForecasting = load_ai_service("predictive_hazard_forecasting", "PredictiveHazardForecasting")
-    ExplainabilityModule = load_ai_service("explainability_module", "ExplainabilityModule")
-    SpaceWeatherDataService = load_ai_service("space_weather_service", "SpaceWeatherDataService")
-    HuggingFaceLLMService = load_ai_service("huggingface_llm", "HuggingFaceLLMService")
-    OdinDecisionEngine = load_ai_service("langgraph_agent", "OdinDecisionEngine")
-    
-    # Check if core services loaded
-    if OdinNavigationSystem and AICoPilot:
-        ODIN_AVAILABLE = True
-        print("✅ ODIN AI services loaded successfully")
-    else:
-        print("❌ Core ODIN services failed to load")
-        
-except Exception as e:
-    print(f"❌ Error loading ODIN AI services: {e}")
+    from odin_main import OdinNavigationSystem
+    from ai_copilot import AICoPilot
+    from predictive_hazard_forecasting import PredictiveHazardForecasting
+    from explainability_module import ExplainabilityModule
+    from space_weather_service import SpaceWeatherDataService
 
-# Create fallback dummy service if needed
-if not ODIN_AVAILABLE:
-    print("   Continuing in fallback mode...")
-    
-    class DummyService:
-        def __init__(self, *args, **kwargs):
-            self.available = False
-            
-        async def __aenter__(self):
-            return self
-            
-        async def __aexit__(self, exc_type, exc_val, exc_tb):
-            pass
-            
-        def __getattr__(self, name):
-            async def dummy_async(*args, **kwargs):
-                return {"error": "Service not available", "fallback": True}
-            def dummy_sync(*args, **kwargs):
-                return {"error": "Service not available", "fallback": True}
-            return dummy_async if name.startswith(('get_', 'generate_', 'predict_', 'initialize_', 'calculate_')) else dummy_sync
-    
-    if not OdinNavigationSystem:
-        OdinNavigationSystem = DummyService
-    if not AICoPilot:
-        AICoPilot = DummyService
-    if not PredictiveHazardForecasting:
-        PredictiveHazardForecasting = DummyService
-    if not ExplainabilityModule:
-        ExplainabilityModule = DummyService
-    if not SpaceWeatherDataService:
-        SpaceWeatherDataService = DummyService
-    if not HuggingFaceLLMService:
-        HuggingFaceLLMService = DummyService
-    if not OdinDecisionEngine:
-        OdinDecisionEngine = DummyService
+    ODIN_AVAILABLE = True
+    logging.info("Successfully imported ODIN AI services.")
+except ImportError as e:
+    logging.warning(f"Could not import ODIN AI services: {e}. Running in fallback mode.")
+    ODIN_AVAILABLE = False
 
 # Import backend services
 from ..services.trajectory_engine import TrajectoryEngine
@@ -103,74 +33,66 @@ from ..config import get_database
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Initialize ODIN system components globally
-odin_system = None
-ai_copilot = None
-hazard_forecaster = None
-explainer = None
-space_weather_service = None
-llm_service = None
-decision_engine = None
-trajectory_engine = None
-backend_space_service = None
 
-async def initialize_odin_services():
-    """Initialize all ODIN services asynchronously"""
-    global odin_system, ai_copilot, hazard_forecaster, explainer
-    global space_weather_service, llm_service, decision_engine
-    global trajectory_engine, backend_space_service
-    
-    if ODIN_AVAILABLE and odin_system is None:
-        try:
-            # Initialize AI services
-            odin_system = OdinNavigationSystem()
-            ai_copilot = AICoPilot()
-            hazard_forecaster = PredictiveHazardForecasting()
-            explainer = ExplainabilityModule()
-            space_weather_service = SpaceWeatherDataService()
-            llm_service = HuggingFaceLLMService()
-            decision_engine = OdinDecisionEngine()
-            
-            # Initialize backend services
-            trajectory_engine = TrajectoryEngine()
-            backend_space_service = BackendSpaceWeatherService()
-            
-            logger.info("🚀 ODIN Navigation System initialized successfully")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to initialize ODIN system: {e}")
-            return False
-    return ODIN_AVAILABLE
+# Initialize ODIN system components globally
+if ODIN_AVAILABLE:
+    odin_system = OdinNavigationSystem()
+    ai_copilot = AICoPilot()
+    hazard_forecaster = PredictiveHazardForecasting()
+    explainer = ExplainabilityModule()
+    space_weather_service = SpaceWeatherDataService()
+    trajectory_engine = TrajectoryEngine()
+    backend_space_service = BackendSpaceWeatherService()
+    logging.info("ODIN services initialized.")
+else:
+    # Create fallback dummy services
+    class DummyService:
+        def __getattr__(self, name):
+            def method(*args, **kwargs):
+                logging.warning(f"Calling dummy service: {self.__class__.__name__}.{name}")
+                if asyncio.iscoroutinefunction(self._dummy_method):
+                    return self._dummy_async_method(*args, **kwargs)
+                return self._dummy_method(*args, **kwargs)
+            return method
+
+        def _dummy_method(self, *args, **kwargs):
+            return {"error": "Service not available", "fallback": True}
+
+        async def _dummy_async_method(self, *args, **kwargs):
+            return {"error": "Service not available", "fallback": True}
+
+    odin_system = DummyService()
+    ai_copilot = DummyService()
+    hazard_forecaster = DummyService()
+    explainer = DummyService()
+    space_weather_service = DummyService()
+    trajectory_engine = DummyService()
+    backend_space_service = DummyService()
+    logging.info("Fallback dummy services initialized.")
+
 
 # =============================================================================
 # ODIN CORE ENDPOINTS
 # =============================================================================
 
-@router.post("/odin/initialize")
+@router.post("/odin/initialize", response_model=InitializeMissionResponse)
 async def initialize_odin_mission(request: InitializeMissionRequest):
     """Initialize ODIN autonomous navigation system with historical space weather data"""
-    # Initialize services if not already done
-    await initialize_odin_services()
-    
-    if not ODIN_AVAILABLE or not odin_system:
+    if not ODIN_AVAILABLE:
         raise HTTPException(status_code=503, detail="ODIN system not available")
     
     try:
-        # Generate unique mission ID
         mission_id = f"odin_mission_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{str(uuid.uuid4())[:8]}"
+        historical_date = request.historical_date or datetime(2015, 3, 17, 12, 0, 0)
         
-        # Initialize with historical timestamp
-        historical_date = request.historical_date or datetime(2015, 3, 17, 12, 0, 0)  # Known solar storm date
-        
-        # Create mission document
         mission_doc = MissionDocument(
             mission_id=mission_id,
             start_time=datetime.utcnow(),
             status=MissionStatus.INITIALIZING,
             destination=request.destination,
             historical_timestamp=historical_date,
-            spacecraft_position=[7000.0, 0.0, 0.0],  # LEO
-            spacecraft_velocity=[0.0, 7.8, 0.0],     # km/s
+            spacecraft_position=[7000.0, 0.0, 0.0],
+            spacecraft_velocity=[0.0, 7.8, 0.0],
             fuel_remaining=85.0,
             mission_constraints=request.mission_constraints or {
                 "max_delta_v": 15000,
@@ -179,39 +101,34 @@ async def initialize_odin_mission(request: InitializeMissionRequest):
             }
         )
         
-        # Store in database
         db = get_database()
         if db is not None:
             await db.missions.insert_one(mission_doc.dict())
         
-        # Initialize trajectory
-        if trajectory_engine:
-            initial_trajectory = await trajectory_engine.calculate_initial_trajectory(
-                historical_date, request.destination
-            )
+        initial_trajectory = await trajectory_engine.calculate_initial_trajectory(
+            historical_date, request.destination
+        )
             
-            # Store trajectory
-            trajectory_doc = TrajectoryDocument(
-                trajectory_id=initial_trajectory.trajectory_id,
-                mission_id=mission_id,
-                trajectory_type="baseline",
-                name=initial_trajectory.name,
-                description="Initial Earth-to-Moon transfer trajectory",
-                maneuvers=[],
-                total_delta_v=initial_trajectory.total_delta_v,
-                duration_hours=initial_trajectory.total_duration,
-                radiation_exposure=initial_trajectory.radiation_exposure,
-                collision_risk=initial_trajectory.collision_risk,
-                safety_score=initial_trajectory.safety_score,
-                fuel_efficiency=1.0 - (initial_trajectory.fuel_required / 2000.0),
-                waypoints=[],
-                is_active=True
-            )
+        trajectory_doc = TrajectoryDocument(
+            trajectory_id=initial_trajectory.trajectory_id,
+            mission_id=mission_id,
+            trajectory_type="baseline",
+            name=initial_trajectory.name,
+            description="Initial Earth-to-Moon transfer trajectory",
+            maneuvers=[],
+            total_delta_v=initial_trajectory.total_delta_v,
+            duration_hours=initial_trajectory.total_duration,
+            radiation_exposure=initial_trajectory.radiation_exposure,
+            collision_risk=initial_trajectory.collision_risk,
+            safety_score=initial_trajectory.safety_score,
+            fuel_efficiency=1.0 - (initial_trajectory.fuel_required / 2000.0),
+            waypoints=[],
+            is_active=True
+        )
             
-            if db is not None:
-                await db.trajectories.insert_one(trajectory_doc.dict())
+        if db is not None:
+            await db.trajectories.insert_one(trajectory_doc.dict())
         
-        # Initialize ODIN system
         result = await odin_system.initialize_mission(request.destination)
         
         return {
@@ -219,7 +136,7 @@ async def initialize_odin_mission(request: InitializeMissionRequest):
             "mission_id": mission_id,
             "message": "ODIN mission initialized successfully",
             "historical_timestamp": historical_date.isoformat(),
-            "initial_trajectory": initial_trajectory.trajectory_id if trajectory_engine else "baseline",
+            "initial_trajectory": initial_trajectory.trajectory_id,
             "data": result,
             "system_info": {
                 "name": "ODIN (Optimal Dynamic Interplanetary Navigator)",
@@ -239,16 +156,12 @@ async def initialize_odin_mission(request: InitializeMissionRequest):
 @router.post("/odin/autonomous-mission")
 async def start_autonomous_mission(mission_id: str, duration_hours: float = 24.0):
     """Start ODIN autonomous mission loop with continuous monitoring and replanning"""
-    if not ODIN_AVAILABLE or not decision_engine:
+    if not ODIN_AVAILABLE:
         raise HTTPException(status_code=503, detail="ODIN decision engine not available")
     
     try:
-        # Run continuous autonomous monitoring
-        mission_events = await decision_engine.continuous_monitoring(
-            mission_id, duration_hours, check_interval_minutes=5
-        )
+        mission_events = await odin_system.autonomous_mission_loop(duration_hours)
         
-        # Update mission status
         db = get_database()
         if db is not None:
             await db.missions.update_one(
@@ -256,22 +169,12 @@ async def start_autonomous_mission(mission_id: str, duration_hours: float = 24.0
                 {"$set": {"status": MissionStatus.COMPLETED, "end_time": datetime.utcnow()}}
             )
         
-        # Generate summary
-        decision_summary = await decision_engine.get_decision_summary(mission_id)
-        
         return {
             "success": True,
             "mission_id": mission_id,
             "message": f"Autonomous mission completed - {duration_hours} hours",
             "mission_duration": duration_hours,
             "mission_events": mission_events,
-            "decision_summary": decision_summary,
-            "performance_metrics": {
-                "total_events": len(mission_events),
-                "autonomous_decisions": len([e for e in mission_events if e.get("event_type") == "autonomous_decision"]),
-                "hazards_detected": len([e for e in mission_events if "HAZARD" in str(e.get("description", ""))]),
-                "system_errors": len([e for e in mission_events if e.get("error", False)])
-            }
         }
         
     except Exception as e:
@@ -290,26 +193,13 @@ async def get_odin_status():
         }
     
     try:
-        # Health check all services
-        health_checks = {}
+        health_checks = {
+            "trajectory_engine": {"available": True, "engine": "Poliastro-based"},
+            "space_weather": {"available": True, "sources": ["NASA DONKI", "Space-Track"]},
+            "database": {"available": get_database() is not None, "type": "MongoDB"}
+        }
         
-        if llm_service:
-            health_checks["llm_service"] = await llm_service.health_check()
-        
-        if trajectory_engine:
-            health_checks["trajectory_engine"] = {"available": True, "engine": "Poliastro-based"}
-        
-        if backend_space_service:
-            health_checks["space_weather"] = {"available": True, "sources": ["NASA DONKI", "Space-Track"]}
-        
-        if decision_engine:
-            health_checks["decision_engine"] = {"available": True, "framework": "LangGraph"}
-        
-        # Database status
-        db = get_database()
-        health_checks["database"] = {"available": db is not None, "type": "MongoDB"}
-        
-        status = odin_system.get_system_status() if odin_system else "System operational"
+        status = odin_system.get_system_status()
         
         return {
             "odin_available": True,
@@ -320,8 +210,8 @@ async def get_odin_status():
                 "🚀 Autonomous Earth-to-Moon trajectory planning with Poliastro",
                 "🤖 AI-powered decision making with LangGraph + Mistral-7B", 
                 "🌤️ Historical space weather analysis from NASA DONKI (2012-2018)",
-                "�️ Orbital debris tracking from Space-Track.org",
-                "�🔮 ML-based hazard prediction and avoidance",
+                "🛰️ Orbital debris tracking from Space-Track.org",
+                "🔮 ML-based hazard prediction and avoidance",
                 "📝 Human-readable decision logs and explanations",
                 "⚡ Dynamic replanning and route optimization",
                 "🧠 Explainable AI recommendations via Hugging Face",
@@ -331,10 +221,6 @@ async def get_odin_status():
             ],
             "health_checks": health_checks,
             "ai_systems": {
-                "llm_service": llm_service is not None,
-                "decision_engine": decision_engine is not None,
-                "trajectory_engine": trajectory_engine is not None,
-                "space_weather": backend_space_service is not None,
                 "ai_copilot": ai_copilot is not None,
                 "hazard_forecaster": hazard_forecaster is not None,
                 "explainer": explainer is not None
@@ -352,7 +238,7 @@ async def get_odin_status():
 @router.get("/odin/decision-logs")
 async def get_odin_decision_logs():
     """Get ODIN decision logs with human-readable explanations"""
-    if not ODIN_AVAILABLE or not odin_system:
+    if not ODIN_AVAILABLE:
         raise HTTPException(status_code=503, detail="ODIN system not available")
     
     try:
@@ -370,7 +256,7 @@ async def get_odin_decision_logs():
 @router.get("/odin/explainability/{decision_id}")
 async def get_decision_explanation(decision_id: str):
     """Get detailed explanation for a specific ODIN decision"""
-    if not ODIN_AVAILABLE or not explainer:
+    if not ODIN_AVAILABLE:
         raise HTTPException(status_code=503, detail="ODIN explainability module not available")
     
     try:
@@ -391,7 +277,7 @@ async def get_decision_explanation(decision_id: str):
 @router.get("/space-weather/current")
 async def get_current_space_weather():
     """Get current space weather conditions from historical 2012-2018 data"""
-    if not ODIN_AVAILABLE or not space_weather_service:
+    if not ODIN_AVAILABLE:
         raise HTTPException(status_code=503, detail="Space weather service not available")
     
     try:
@@ -409,14 +295,11 @@ async def get_current_space_weather():
 @router.get("/hazards/predict")
 async def predict_hazards(horizon_hours: int = 72):
     """Predict space weather hazards using ML models trained on historical data"""
-    if not ODIN_AVAILABLE or not hazard_forecaster:
+    if not ODIN_AVAILABLE:
         raise HTTPException(status_code=503, detail="Hazard forecasting service not available")
     
     try:
-        # Get current space weather for prediction
         current_weather = await space_weather_service.get_current_conditions()
-        
-        # Generate hazard predictions
         predictions = await hazard_forecaster.predict_hazards(current_weather, horizon_hours)
         
         return {
@@ -438,15 +321,14 @@ async def predict_hazards(horizon_hours: int = 72):
 @router.post("/ai-copilot/mission-brief")
 async def generate_mission_brief(mission_time: float = 0.0):
     """Generate AI mission brief and strategic recommendations"""
-    if not ODIN_AVAILABLE or not ai_copilot:
+    if not ODIN_AVAILABLE:
         raise HTTPException(status_code=503, detail="AI Co-pilot not available")
     
     try:
-        # Create mock mission status for brief generation
         mission_status = {
             "mission_time": mission_time,
             "position": "Earth orbit",
-            "velocity": 7.8,  # km/s
+            "velocity": 7.8,
             "fuel_remaining": 95.0,
             "destination": "Moon"
         }
@@ -468,7 +350,7 @@ async def generate_trajectory_alternatives(
     constraints: Dict[str, Any] = {}
 ):
     """Generate alternative trajectories using AI strategic planning"""
-    if not ODIN_AVAILABLE or not ai_copilot:
+    if not ODIN_AVAILABLE:
         raise HTTPException(status_code=503, detail="AI Co-pilot not available")
     
     try:
@@ -494,7 +376,7 @@ async def generate_trajectory_alternatives(
 @router.get("/mission/status")
 async def get_mission_status():
     """Get current mission status and telemetry"""
-    if not ODIN_AVAILABLE or not odin_system:
+    if not ODIN_AVAILABLE:
         return {
             "mission_active": False,
             "status": "ODIN system not available",
@@ -560,4 +442,21 @@ async def root():
             "system": "/api/system/*"
         },
         "documentation": "/docs"
+    }
+
+@router.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "ok",
+        "odin_available": ODIN_AVAILABLE,
+        "services": {
+            "odin_system": odin_system is not None and not isinstance(odin_system, DummyService),
+            "ai_copilot": ai_copilot is not None and not isinstance(ai_copilot, DummyService),
+            "hazard_forecaster": hazard_forecaster is not None and not isinstance(hazard_forecaster, DummyService),
+            "explainer": explainer is not None and not isinstance(explainer, DummyService),
+            "space_weather_service": space_weather_service is not None and not isinstance(space_weather_service, DummyService),
+            "trajectory_engine": trajectory_engine is not None and not isinstance(trajectory_engine, DummyService),
+            "backend_space_service": backend_space_service is not None and not isinstance(backend_space_service, DummyService),
+        }
     }

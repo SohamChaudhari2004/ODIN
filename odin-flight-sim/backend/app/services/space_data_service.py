@@ -328,10 +328,66 @@ class NASADONKIService:
             current_date += timedelta(days=1)
         
         return mock_cmes
+
+    async def _process_geomagnetic_data(self, raw_data: List[Dict]) -> List[Dict[str, Any]]:
+        """Process raw NASA DONKI geomagnetic storm data"""
+        processed_storms = []
+
+        for storm in raw_data:
+            processed_storm = {
+                "hazard_id": f"gst_{storm.get('gstID', 'unknown')}",
+                "hazard_type": "geomagnetic_storm",
+                "start_time": self._parse_donki_time(storm.get("startTime")),
+                "kp_index": self._extract_kp_index(storm),
+                "severity": self._calculate_gst_severity(self._extract_kp_index(storm)),
+                "source_data": storm
+            }
+            processed_storms.append(processed_storm)
+
+        return processed_storms
+
+    def _extract_kp_index(self, storm_data: Dict) -> int:
+        """Extract Kp index from geomagnetic storm data"""
+        try:
+            all_kp_index = storm_data.get("allKpIndex", [])
+            if all_kp_index:
+                return all_kp_index[0].get("kpIndex", 0)
+        except:
+            pass
+        return 0
+
+    def _calculate_gst_severity(self, kp_index: int) -> float:
+        """Calculate geomagnetic storm severity based on Kp-index"""
+        if kp_index < 4:
+            return 0.1
+        elif kp_index < 6:
+            return 0.4
+        elif kp_index < 8:
+            return 0.7
+        else:
+            return 0.9
     
     async def _generate_mock_geomagnetic_data(self, start_date: datetime, end_date: datetime) -> List[Dict]:
         """Generate mock geomagnetic storm data"""
-        return []  # Simplified for now
+        mock_storms = []
+        current_date = start_date
+
+        while current_date < end_date:
+            # Generate random storms (about 1 per 2 weeks)
+            if current_date.day % 14 == 0:
+                storm = {
+                    "hazard_id": f"mock_gst_{current_date.strftime('%Y%m%d')}",
+                    "hazard_type": "geomagnetic_storm",
+                    "start_time": current_date + timedelta(hours=18),
+                    "kp_index": 5,
+                    "severity": 0.4,
+                    "source_data": {"mock": True}
+                }
+                mock_storms.append(storm)
+
+            current_date += timedelta(days=1)
+
+        return mock_storms
 
 class SpaceTrackService:
     """Space-Track.org service for orbital debris data"""

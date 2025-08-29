@@ -16,7 +16,6 @@ huggingface-hub>=0.19.0
 accelerate>=0.24.0
 
 # Astrodynamics and orbital mechanics
-poliastro>=0.17.0
 astropy>=5.3.0
 
 # AI/ML dependencies - required for ML models

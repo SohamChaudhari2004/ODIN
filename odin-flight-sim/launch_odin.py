@@ -53,7 +53,7 @@ class OdinLauncher:
         print("🚀 Starting ODIN Backend...")
         try:
             self.backend_process = subprocess.Popen(
-                [sys.executable, "main.py"],
+                ["uvicorn", "main:app", "--reload", "--log-level", "trace"],
                 cwd=self.backend_dir,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -61,11 +61,15 @@ class OdinLauncher:
             )
             
             # Wait for backend to start
-            for i in range(30):  # 30 second timeout
+            for i in range(60):  # 60 second timeout
                 try:
                     response = requests.get("http://localhost:8000/api/health", timeout=1)
                     if response.status_code == 200:
-                        print("✅ Backend started successfully")
+                        health_data = response.json()
+                        if health_data.get("odin_available"):
+                            print("✅ Backend and AI services started successfully")
+                        else:
+                            print("⚠️ Backend started, but AI services are not available. Running in fallback mode.")
                         return True
                 except:
                     time.sleep(1)

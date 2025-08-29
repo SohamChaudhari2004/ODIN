@@ -33,7 +33,6 @@ transformers>=4.36.0
 huggingface-hub>=0.19.0
 
 # Astrodynamics with Poliastro
-poliastro>=0.17.0
 astropy>=5.3.0
 
 # Machine learning for hazard prediction
